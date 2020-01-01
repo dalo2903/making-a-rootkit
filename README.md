@@ -26,6 +26,8 @@ From [The Linux Kernel Module Programming Guide](http://www.tldp.org/LDP/lkmpg/2
 ### Linux Devices
 * https://www.debian.org/releases/jessie/amd64/apds01.html.en
 
+### ioctl Interface
+https://unix.stackexchange.com/questions/4711/what-is-the-difference-between-ioctl-unlocked-ioctl-and-compat-ioctl
 ### Linux Notification Chains
 * https://0xax.gitbooks.io/linux-insides/content/Concepts/linux-cpu-4.html
 
