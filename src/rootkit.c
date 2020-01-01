@@ -1,0 +1,99 @@
+#include <linux/module.h>	/* Needed by all modules */
+#include <linux/kernel.h>	/* Needed for KERN_INFO */
+#include <linux/init.h>		/* Needed for the macros */
+#include <linux/fs.h>
+#include <asm/uaccess.h>
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Kha");
+
+#define DEVICE_NAME "rootkit"
+#define SUCCESS 0
+#define BUF_LEN 80
+
+// Global variables
+static int major;
+static int device_open_num = 0;
+static char msg[BUF_LEN];
+static char *msg_ptr;
+
+static int device_open (struct inode *, struct file *);
+static int device_release (struct inode*, struct file*);
+static ssize_t device_read(struct file *, char *, size_t, loff_t *);
+
+static struct file_operations fops ={
+				     .read = device_read
+				     // , .write = device_write
+				     , .open = device_open
+				     , .release = device_release
+};
+
+
+// Methods
+static ssize_t device_read(struct file * flip
+			   , char * buffer
+			   , size_t length
+			   , loff_t * offset){
+  int bytes_read = 0;
+
+  if (*msg_ptr == 0)
+    return 0;
+
+  while (length && *msg_ptr){
+    put_user(*(msg_ptr++), buffer++);
+    length--;
+    bytes_read++;
+  }
+  return bytes_read;
+}
+
+static int device_open(struct inode* inode, struct file* file){
+  static int counter = 0;
+  if(device_open_num)
+    return -EBUSY;
+
+  device_open_num++;
+  sprintf(msg, "I already told you %d times Hello world!\n", counter++);
+  try_module_get(THIS_MODULE);
+
+  return SUCCESS;
+}
+
+static int device_release(struct inode *inode, struct file *file)
+{
+	device_open_num--;		/* We're now ready for our next caller */
+
+	/* 
+	 * Decrement the usage count, or else once you opened the file, you'll
+	 * never get get rid of the module. 
+	 */
+	module_put(THIS_MODULE);
+	return 0;
+}
+
+// Rootkit init & exit
+static int __init rootkit_init(void)
+{
+  major = register_chrdev(0, DEVICE_NAME, &fops);
+  if (major<0){
+    printk (KERN_ALERT "Registering char device failed with %d\n", major);
+  }
+  printk(KERN_INFO "I was assigned major number %d. To talk to\n", major);
+	printk(KERN_INFO "the driver, create a dev file with\n");
+	printk(KERN_INFO "'mknod /dev/%s c %d 0'.\n", DEVICE_NAME, major);
+	printk(KERN_INFO "Try various minor numbers. Try to cat and echo to\n");
+	printk(KERN_INFO "the device file.\n");
+	printk(KERN_INFO "Remove the device file and module when done.\n");
+  printk(KERN_INFO "Rootkit loaded\n");
+  return SUCCESS;
+}
+static void __exit rootkit_exit(void)
+{
+  /*int ret =*/ unregister_chrdev(major, DEVICE_NAME);
+  //if (ret < 0)
+  //    	printk(KERN_ALERT "Error in unregister_chrdev: %d\n", ret);
+  printk(KERN_INFO "Rootkit unloaded\n");
+}
+
+module_init(rootkit_init);
+module_exit(rootkit_exit);

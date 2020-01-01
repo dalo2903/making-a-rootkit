@@ -1,0 +1,4 @@
+sudo insmod rootkit.ko
+modinfo rootkit
+rmmod rootkit
+dmesg
