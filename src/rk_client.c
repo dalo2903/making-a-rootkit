@@ -75,16 +75,17 @@ main()
 {
   int file_desc, ret_val;
   char *msg = "Message passed by ioctl\n";
-
-  file_desc = open(DEVICE_FILE_NAME, 0);
+  char path[80];
+  sprintf(path,"/dev/%s",DEVICE_FILE_NAME);
+  file_desc = open(path, 0);
   if (file_desc < 0) {
-    printf("Can't open device file: %s\n", DEVICE_FILE_NAME);
+    printf("Can't open device file: %s\n", path);
     exit(-1);
   }
 
-  ioctl_get_nth_byte(file_desc);
+  //ioctl_get_nth_byte(file_desc);
   ioctl_get_msg(file_desc);
-  ioctl_set_msg(file_desc, msg);
+  //ioctl_set_msg(file_desc, msg);
 
   close(file_desc);
 }
