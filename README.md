@@ -22,6 +22,8 @@ From [The Linux Kernel Module Programming Guide](http://www.tldp.org/LDP/lkmpg/2
 * https://www.apriorit.com/dev-blog/195-simple-driver-for-linux-os
 ### Linux Files
 * https://www.codeproject.com/Articles/444995/Driver-to-hide-files-in-Linux-OS
+* https://github.com/nurupo/rootkit/blob/master/rootkit.c
+* https://ops.tips/amp/blog/how-is-proc-able-to-list-pids/
 
 ### Linux Devices
 * https://www.debian.org/releases/jessie/amd64/apds01.html.en
