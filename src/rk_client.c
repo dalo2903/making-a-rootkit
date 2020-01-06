@@ -67,7 +67,11 @@ ioctl_get_nth_byte(int file_desc)
   } while (c != 0);
   putchar('\n');
 }
-
+ioctl_toggle_hide_module(int file_desc){
+  int ret_val;
+  //char[100] message;
+  ret_val = ioctl(file_desc, IOCTL_TOGGLE_HIDE_MODULE, 0);
+}
 /* 
  * Main - Call the ioctl functions 
  */
@@ -82,10 +86,26 @@ main()
     printf("Can't open device file: %s\n", path);
     exit(-1);
   }
-
+  printf("Opened device file.\n");
   //ioctl_get_nth_byte(file_desc);
-  ioctl_get_msg(file_desc);
+  // ioctl_get_msg(file_desc);
   //ioctl_set_msg(file_desc, msg);
+  int input ;
+  while (1){
+    printf("1. hide module\n");
 
+    printf("input:");
+    scanf("%d", &input);
+    switch(input){
+    case 1:
+      ioctl_toggle_hide_module(file_desc);
+      return 0;
+      //break;
+      
+    default:
+      break;
+    }
+    
+  }
   close(file_desc);
 }

