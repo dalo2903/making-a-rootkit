@@ -128,13 +128,7 @@ device_ioctl(
   char ch;
   switch (ioctl_num) {
     case IOCTL_SET_MSG:
-      /*
-       * Receive a pointer to a message (in user space) and set that
-       * to be the device's message.  Get the parameter given to
-       * ioctl by the process.
-       */
       temp = (char *)ioctl_param;
-
       /*
        * Find the length of the message
        */

@@ -20,10 +20,15 @@ From [The Linux Kernel Module Programming Guide](http://www.tldp.org/LDP/lkmpg/2
 * <http://derekmolloy.ie/writing-a-linux-kernel-module-part-2-a-character-device>
 * [The Linux Kernel Module Programming Guide](http://www.tldp.org/LDP/lkmpg/2.6/html/index.html)
 * https://www.apriorit.com/dev-blog/195-simple-driver-for-linux-os
+
 ### Linux Files
 * https://www.codeproject.com/Articles/444995/Driver-to-hide-files-in-Linux-OS
 * https://github.com/nurupo/rootkit/blob/master/rootkit.c
 * https://ops.tips/amp/blog/how-is-proc-able-to-list-pids/
+* http://turbochaos.blogspot.com/2013/10/writing-linux-rootkits-201-23.html
+
+### Inline Function Hooking
+* https://www.malwaretech.com/2015/01/inline-hooking-for-programmers-part-1.html
 
 ### Linux Devices
 * https://www.debian.org/releases/jessie/amd64/apds01.html.en
